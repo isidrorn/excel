@@ -1,0 +1,431 @@
+
+Private Sub CommandButton1_Click()
+
+
+'Limpiamos la hoja 24 lo primero
+Hoja24.Range("b2:e60").Value = ""
+
+'-------------------------------------------------------------------------------------------------------------------
+'CALIDAD
+'-------------------------------------------------------------------------------------------------------------------
+'recorremos la Col A hasta encontrar una linea que empiece por "C."
+'Una vez encontrada recorremos la fila buscando los valores incorrectos
+
+' >0,01  &&  <99.9 RATIO INCIDENCIAS
+' >5%  ->  %  DENSIDAD INCIDENCIAS
+' >5%  ->  %  RETRABAJO
+' <85% ->  %  PETICIONES SIN INCIDENCIAS
+' >0   ->  NO VALIDACION INTERNA
+' <85% ->  PPM
+Dim proyectos As New Collection
+Dim fallo As Boolean
+Dim tabla() As Variant
+'ReDim tabla(35, 5)
+ReDim tabla(35, 10, 5)
+Dim indiceProyecto As Integer
+Dim indiceLinea As Integer
+indiceLinea = 0
+indiceProyecto = 1
+contadorproyectos = 0
+'INDICES DEL ARRAY TABLA
+'[1][0][0]->nombre de linea (L.ABAP)
+'[1][1][0]->nombre Proyecto o Celda (C.BBVA)
+'[1][1][1]-> Calidad
+'[1][1][2]->Plazos
+'[1][1][3]->productividad
+'[1][1][4]->PPM
+'[1][1][5]->NC's
+'[1][2][0]-> C.IMH
+'....
+'[2][0][0]->L.Enagas
+'.....
+
+
+'-----------------------------------------------------------------------------
+'Recodificando el algoritmo. Debe cumplir 2 objetivos
+'1.- almacenar todos los datos requeridos en la presentacion en una tabla para despues mostrarlos de un plumazo
+'meteremos los datos en un array 3d y crearemos una tabla de relaciones manualmente,
+'luego relacionaremos las 2 tablas para sacar una tercera como resultado o imprimiremos directamente
+'2.- intentar codificarlo de manera que no haya que tocar la macro a la hora de sacar los resultados
+'de manera que si se introdujesen o borrasen datos no hubiera que cambiar nada
+
+'-------------------------------------------------------------------------------
+'"I" = PRIMERA FILA CON DATOS, "F" NO PUEDE SER MENOR DE 1 PORQUE ES QUIEN COMPRUEBA EL OFFSET
+i = 68
+f = 1
+Do Until Cells(i, 1).Offset(1, 0).Value = ""
+   If Left(Hoja3.Cells(i, 1), 2) = "L." Then
+        'agrega linea a la matriz
+        indiceProyecto = 1
+        f = 1
+        tabla(indiceLinea, 0, 0) = Hoja3.Cells(i, 1).Value
+        Do Until Left(Hoja3.Cells(i, 1).Offset(f, 0).Value, 2) = "L." 'Or Left(Hoja3.Cells(i, 1).Offset(f, 0).Value, 2) = ""
+            
+            If Left(Hoja3.Cells(i, 1).Offset(f, 0).Value, 2) = "C." Then
+                fallo = False
+                'agrega proyecto a la matriz
+                tabla(indiceLinea, indiceProyecto, 0) = Hoja3.Cells(i, 1).Offset(f, 0).Value
+                'recorrer el proyecto buscando los datos y almacenandolos
+                'recorremos las columnas de la O a la Q (calidad)
+                For j = 15 To 17
+                    If Hoja3.Cells(i, j).Offset(f, 0).Value > 0.01 And Hoja3.Cells(i, j).Offset(f, 0).Value < 99.9 Then
+                        fallo = True
+                    
+                    Else
+                        fallo = False
+                    End If
+                Next j
+                If fallo = True Then
+                    tabla(indiceLinea, indiceProyecto, 1) = 0
+                Else
+                    tabla(indiceLinea, indiceProyecto, 1) = 1
+                End If
+                
+                fallo = False
+                '---------------------------------------------------------------------------------
+                'SEGUIR POR AQUI
+                '---------------------------------------------------------------------------------
+ 
+                'RECORRER LA HOJA ESTIMADO VS INCURRIDO columnas N y O
+                'el valor es negativo si supera el 2% (0,02)
+                'hay que debuggear para ver si las I coinciden en ambos casos(creo que va dar errores tal como esta)
+                'For j = 14 To 15
+                '    If Hoja7.Cells(i, j).Value > 0.02 Then
+                '        fallo = True
+                '    End If
+                'Next j
+        
+                'If fallo = True Then
+                '    tabla(indiceLinea, indiceProyecto, 3) = 0
+                'Else
+                '    tabla(indiceLinea, indiceProyecto, 3) = 1
+                'End If
+
+                fallo = False
+                'recorremos la columna Z (PPM)
+                If Hoja3.Cells(i, 26).Offset(f, 0).Value < 0.849 Then
+                    fallo = True
+                End If
+                If fallo = True Then
+                    tabla(indiceLinea, indiceProyecto, 4) = 0
+                Else
+                    tabla(indiceLinea, indiceProyecto, 4) = 1
+                End If
+        
+                indiceProyecto = indiceProyecto + 1
+                
+            End If
+            'i = i + 1
+            f = f + 1
+        Loop
+        indiceLinea = indiceLinea + 1
+    End If
+i = i + 1
+Loop
+
+'-------------------------------------------------------------------------------------------------------------------
+'PRODUCTIVIDAD -> en pruebas
+'-------------------------------------------------------------------------------------------------------------------
+i = 68
+f = 1
+indiceProyecto = 1
+Do Until Hoja7.Cells(i, 1).Offset(1, 0).Value = ""
+    f = 1
+   If Left(Hoja7.Cells(i, 1), 2) = "L." Then
+        'BUSCAMOs SI LA LINEA ENCONTRADA ESTA EN LA MATRIZ
+        'SI NO ESTA DEBEMOS AÑADIRLA
+        'indiceProyecto = 1
+        'f = 1
+        encontrado = False
+        For j = 0 To 35
+            If tabla(j, 0, 0) = Hoja7.Cells(i, 1).Value Then
+                encontrado = True
+                posicion = j
+                Exit For
+            End If
+        Next j
+        
+        'una vez encontrada linea o no, nos preocupamos de agregar los datos en su sitio
+        If encontrado = True Then
+            'si lo encontramos agregamos los datos en el indice Posicion
+            Do Until Left(Hoja7.Cells(i, 1).Offset(f, 0).Value, 2) = "L." Or Left(Hoja7.Cells(i, 1).Offset(f, 0).Value, 2) = ""
+                If Left(Hoja7.Cells(i, 1).Offset(f, 0).Value, 2) = "C." Then
+                'una vez encontrado un proyecto miramos si existe o no dentro de la tabla
+                pencontrado = False
+                    For k = 1 To 9 '10
+                    fallo = False
+                    
+                        If tabla(posicion, k, 0) = Hoja7.Cells(i, 1).Offset(f, 0).Value Then
+                            pencontrado = True
+                            pposicion = k
+                            'agregamos a la tabla el valor de productividad
+                            For j = 14 To 15
+                                If Hoja7.Cells(i, j).Offset(f, 0).Value > 0.02 Then
+                                    fallo = True
+                                End If
+                            Next j
+        
+                            If fallo = True Then
+                                tabla(posicion, k, 3) = 0
+                            Else
+                                tabla(posicion, k, 3) = 1
+                            End If
+                            
+                            
+                            
+                        Else
+                            'vamos guardando la posicion recorrida si el valor de la celda no es vacio para añadir un proyecto en esa posicion de no encontrarlo
+                            If tabla(posicion, k, 0) = "" Then ' probando
+                                pposicion = k
+                                Exit For
+                            End If
+                        End If
+                     Next k
+                    
+                     If pencontrado = False Then
+                        pposicion = pposicion + 1
+                        'aqui falla al insertar C AM privalia,
+                        tabla(posicion, pposicion, 0) = Hoja7.Cells(i, 1).Offset(f, 0).Value
+                        
+                            For j = 14 To 15
+                                If Hoja7.Cells(i, j).Value > 0.02 Then
+                                    fallo = True
+                                End If
+                            Next j
+        
+                            If fallo = True Then
+                                tabla(posicion, pposicion, 3) = 0
+                            Else
+                                tabla(posicion, pposicion, 3) = 1
+                            End If
+                     End If
+                    
+                    indiceProyecto = indiceProyecto + 1
+                
+                End If
+                'i = i + 1
+                f = f + 1
+            Loop
+           'de no estar lo agregamos al final con el indice indicelinea
+        Else
+            tabla(indiceLinea, 0, 0) = Hoja7.Cells(i, 1)
+            
+        End If
+     
+        indiceProyecto = 1
+        'f = 1
+        'tabla(indiceLinea, 0, 0) = Hoja4.Cells(i, 1).Value
+        Do Until Left(Hoja7.Cells(i, 1).Offset(f, 0).Value, 2) = "L." Or Left(Hoja7.Cells(i, 1).Offset(f, 0).Value, 2) = ""
+            If Left(Hoja7.Cells(i, 1).Offset(f, 0).Value, 2) = "C." Then
+                'agrega proyecto a la matriz
+                tabla(indiceLinea, indiceProyecto, 0) = Hoja7.Cells(i, 1).Offset(f, 0).Value
+                'recorrer el proyecto buscando los datos y almacenandolos
+                'recorremos las columnas de la O a la Q (calidad)
+
+                indiceProyecto = indiceProyecto + 1
+                
+            End If
+            'i = i + 1
+            f = f + 1
+        Loop
+        indiceLinea = indiceLinea + 1
+    End If
+i = i + 1
+Loop
+
+                
+                
+'FIN ZONA DE PRUEBAS
+
+
+
+'-------------------------------------------------------------------------------------------------------------------
+'PLAZOS - > terminado 99%, no crea las lineas nuevas para los proyectos que no encuentra
+'-------------------------------------------------------------------------------------------------------------------
+i = 95
+f = 1
+indiceProyecto = 1
+indiceLinea = 1
+Do Until Hoja4.Cells(i, 1).Offset(1, 0).Value = ""
+    f = 1
+   If Left(Hoja4.Cells(i, 1), 2) = "L." Then
+        'agrega linea a la matriz
+        'BUSCAMOs SI LA LINEA ENCONTRADA ESTA EN LA MATRIZ
+        'SI NO ESTA DEBEMOS AÑADIRLA
+        'indiceProyecto = 1
+        'f = 1
+        encontrado = False
+        For j = 0 To 35
+            If tabla(j, 0, 0) = Hoja4.Cells(i, 1).Value Then
+                encontrado = True
+                posicion = j
+                Exit For
+            End If
+        Next j
+        
+        'una vez encontrada linea o no, nos preocupamos de agregar los datos en su sitio
+        If encontrado = True Then
+            'si lo encontramos agregamos los datos en el indice Posicion
+            Do Until Left(Hoja4.Cells(i, 1).Offset(f, 0).Value, 2) = "L." Or Left(Hoja4.Cells(i, 1).Offset(f, 0).Value, 2) = ""
+                If Left(Hoja4.Cells(i, 1).Offset(f, 0).Value, 2) = "C." Then
+                'una vez encontrado un proyecto miramos si existe o no dentro de la tabla
+                pencontrado = False
+                    For k = 1 To 10
+                        If tabla(posicion, k, 0) = Hoja4.Cells(i, 1).Offset(f, 0).Value Then
+                            pencontrado = True
+                            pposicion = k
+                            'agregamos a la tabla el valor de plazos
+                            If Hoja4.Cells(i, 6).Offset(f, 0).Value > 0 Then
+                                tabla(posicion, k, 2) = 0
+                            Else
+                                tabla(posicion, k, 2) = 1
+                            End If
+                            Exit For
+                        Else
+                            If tabla(posicion, k, 0) = "" Then ' probando
+                                pposicion = k
+                                Exit For
+                            End If
+                        End If
+                     Next k
+                    
+                     If pencontrado = False Then
+                        pposicion = pposicion + 1
+                        tabla(posicion, pposicion, 0) = Hoja4.Cells(i, 1).Offset(f, 0).Value
+                        
+                        If Hoja4.Cells(i, 6).Offset(f, 0).Value > 0 Then
+                            tabla(posicion, pposicion, 2) = 0
+                        Else
+                            tabla(posicion, pposicion, 2) = 1
+                        End If
+                     End If
+                    
+                    indiceProyecto = indiceProyecto + 1
+                
+                End If
+                'i = i + 1
+                f = f + 1
+            Loop
+           'de no estar lo agregamos al final con el indice indicelinea
+        Else
+            tabla(indiceLinea, 0, 0) = Hoja4.Cells(i, 1)
+            
+        End If
+     
+        indiceProyecto = 1
+        'f = 1
+        'tabla(indiceLinea, 0, 0) = Hoja4.Cells(i, 1).Value
+        Do Until Left(Hoja4.Cells(i, 1).Offset(f, 0).Value, 2) = "L." Or Left(Hoja4.Cells(i, 1).Offset(f, 0).Value, 2) = ""
+            If Left(Hoja4.Cells(i, 1).Offset(f, 0).Value, 2) = "C." Then
+                'agrega proyecto a la matriz
+                tabla(indiceLinea, indiceProyecto, 0) = Hoja4.Cells(i, 1).Offset(f, 0).Value
+                'recorrer el proyecto buscando los datos y almacenandolos
+                'recorremos las columnas de la O a la Q (calidad)
+
+                indiceProyecto = indiceProyecto + 1
+                
+            End If
+            'i = i + 1
+            f = f + 1
+        Loop
+        indiceLinea = indiceLinea + 1
+    End If
+i = i + 1
+Loop
+
+'------------------------------------------
+'% NO CONFORMIDADES -> pendiente
+'------------------------------------------
+
+'colDestino = 2
+'filaDestino = 8
+'Dim cabeceras As New Collection
+'crear array que recoja las cabeceras de columna de la hoja 24, este array se diferencia en bien poco de proyectos,
+'pero es necesario que esten separados hasta que optimice el codigo
+
+'For i = 2 To 40
+ '   If Hoja24.Cells(3, i).Value = "" Then
+  '      Exit For
+   ' Else
+   '     cabeceras.Add (Hoja24.Cells(3, i).Value)
+'    End If
+'Next i
+'Recorremos columna A de la hoja 20
+'For i = 18 To 33
+'    fallo = False
+    'recorremos las columnas A(nombre)y D(porcentaje no conformidades) de la hoja 20 (% NC's)
+'    If Left(Hoja20.Cells(i, 1), 2) = "C." Then
+        'comprobamos si ya tenemos la cabecera de la columna en la lista y de ser asi creamos una nueva columna
+'        nomColumna = Hoja20.Cells(i, 1).Value
+'        encontrado = False
+'        For j = 1 To cabeceras.Count
+'            masdatos = cabeceras(j)
+'            If CStr(masdatos) = CStr(nomColumna) Then
+'               encontrado = True
+'               posicion = j
+'               Exit For
+'            End If
+'        Next j
+        'Comprobamos si las NC son superiores al 10%
+'        If Hoja20.Cells(i, 4).Value > 0.1 Then
+'            fallo = True
+'       End If
+'      If encontrado = False Then
+            'aqui creamos la nueva columna
+'            Hoja24.Columns(colDestino).Insert
+'            Hoja24.Cells(3, colDestino).Value = Hoja20.Cells(i, 1)
+'            cabeceras.Add (Hoja20.Cells(i, 1))
+'            If fallo = True Then
+'                Hoja24.Cells(filaDestino, colDestino).Value = "0"
+'            Else
+'                Hoja24.Cells(filaDestino, colDestino).Value = "1"
+'            End If
+'        Else
+'            If fallo = True Then
+'                Hoja24.Cells(filaDestino, posicion + 1).Value = "0"
+'            Else
+'                Hoja24.Cells(filaDestino, posicion + 1).Value = "1"
+'            End If
+'        End If
+'        colDestino = colDestino + 1
+'   End If
+'Next i
+'INDICES DEL ARRAY TABLA
+'[1][0][0]->nombre de linea (L.ABAP)
+'[1][1][0]->nombre Proyecto o Celda (C.BBVA)
+'[1][1][1]-> Calidad
+'[1][1][2]->Plazos
+'[1][1][3]->productividad
+'[1][1][4]->PPM
+'[1][1][5]->NC's
+'[1][2][0]-> C.IMH
+'....
+'[2][0][0]->L.Enagas
+'pintamos lineas
+j = 0
+For i = 1 To UBound(tabla, 1)
+    Hoja24.Cells(i + contadorproyectos, 1).Value = tabla(i - 1, 0, 0)
+    'pintamos proyectos
+    For j = 1 To UBound(tabla, 2)
+        If tabla(i - 1, j, 0) <> "" Then
+        Hoja24.Cells(i + contadorproyectos + 1, 1).Value = tabla(i - 1, j, 0)
+        contadorproyectos = contadorproyectos + 1
+        For k = 1 To UBound(tabla, 3)
+        'pintamos datos en celdas
+            Hoja24.Cells(i + contadorproyectos, k + 1) = tabla(i - 1, j, k)
+        'Hoja24.Cells(i + 10, j + 1) = tabla(i, j)
+        Next k
+        End If
+    Next j
+Next i
+
+End Sub
+
+Private Sub CommandButton2_Click()
+    If Hoja3.Cells(69, 15).Value > 0.01 And Hoja3.Cells(69, 15).Value < 99.9 Then
+        MsgBox "mal"
+    Else
+        MsgBox "ok"
+    End If
+    
+End Sub
