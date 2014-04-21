@@ -1,10 +1,9 @@
-
 Private Sub CommandButton1_Click()
 
 
 'Limpiamos la hoja 24 lo primero
 Hoja24.Range("b2:e60").Value = ""
-
+'este es un comentario para comprobar el versionado en gitub
 '-------------------------------------------------------------------------------------------------------------------
 'CALIDAD
 '-------------------------------------------------------------------------------------------------------------------
